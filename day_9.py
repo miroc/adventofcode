@@ -1,91 +1,67 @@
 #!/usr/bin/env python
-import re
+from collections import defaultdict
+import itertools
 
+# For automatic creation of nested dictionaries when assigning a value
+distances = defaultdict(dict)
+cities = set()
 
-class Computer:
-    def __init__(self):
-        self.registry = {}
-        self.computed = {}
-
-    def add(self, target, to_eval):
-        self.registry[target] = to_eval
-
-    def eval(self, target):
-        if target in self.computed:
-            return self.computed[target]
-
-        if target.isdigit():
-            return int(target)
-
-        val = self.registry[target]
-
-        f = val["func"]
-        p = val["params"]
-        if f == "LSHIFT":
-            res = self.eval(p[0]) << self.eval(p[1])
-        elif f == "RSHIFT":
-            res = self.eval(p[0]) >> self.eval(p[1])
-        elif f == "AND":
-            res = self.eval(p[0]) & self.eval(p[1])
-        elif f == "OR":
-            res = self.eval(p[0]) | self.eval(p[1])
-        elif f == "NOT":
-            res = ~self.eval(p[0])
+# Old way
+def travel(seen_cities, total):
+    last_city = seen_cities[-1]
+    new_cities = [new_city for new_city in cities if new_city in distances[last_city] and new_city not in seen_cities]
+    if len(new_cities) == 0:
+        if len(seen_cities) == len(cities):
+            # if all seen, go back
+            return seen_cities, total
         else:
-            res = self.eval(p[0])
+            # no path here
+            return None
 
-        # Store computed value for particular symbol
-        self.computed[target] = res
-        return res
+    travels = []
+    for new_city in new_cities:
+        newlist = list(seen_cities)
+        newlist.append(new_city)
+        dist = distances[last_city][new_city]
+        res = travel(newlist, total + dist)
+        if res is not None:
+            travels.append(res)
 
-
-computer = Computer()
-
-# (\w) matches [a-zA-Z0-9_]
-assign_regex = re.compile("(.+) -> (\w+)")
-
-targets = []
+    if len(travels) == 0:
+        return None
+    # First task
+    return min(travels, key=lambda x: x[1])
+    # Second task
+    # return max(travels, key=lambda x: x[1])
 
 
 def process_line(line):
-    # print(line)
-    m = assign_regex.match(line)
-    if m is not None:
-        target = m.group(2)
-        targets.append(target)
-        left_side = m.group(1).split()
-
-        twoparams_func = ["RSHIFT", "LSHIFT", "OR", "AND"]
-        for f in twoparams_func:
-            if f in left_side:
-                computer.add(target, {"func": f, "params": [left_side[0], left_side[2]]})
-                return
-
-        # one parameter funcs - NOT and ASSIGN
-        if "NOT" in left_side:
-            computer.add(target, {"func": "NOT", "params": [left_side[1]]})
-        else:
-            computer.add(target, {"func": None, "params": [left_side[0]]})
+    (frm, _, to, _, dist) = line.split()
+    # without defaultdict, this  would throw an error
+    distances[frm][to] = int(dist)
+    distances[to][frm] = int(dist)
+    cities.add(frm)
+    cities.add(to)
 
 
 def process_lines(lines):
     for line in lines:
         process_line(line)
 
+    # New approach using permutations and zip
+    path_sums = []
+    for path in itertools.permutations(cities):
+        total = sum([distances[frm][to] for frm,to in zip(path[:-1], path[1:])])
+        path_sums.append(total)
+
+    print("Task1: min travel distance is %d" % min(path_sums))
+    print("Task2: max travel distance is %d" % max(path_sums))
+
 
 def main():
-    with open("day_7_input") as f:
+    with open("day_9_input") as f:
         lines = f.readlines()
         process_lines(lines)
-
-        a = computer.eval("a")
-
-        print("'a' evaluates to %d" % a)
-        computer.computed = {"b": a}
-
-        a2 = computer.eval("a")
-
-        print("'a2' evaluates to %d" % a2)
 
 
 if __name__ == '__main__':
